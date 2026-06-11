@@ -1,0 +1,38 @@
+service: hackon6-api
+
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-south-1
+  stage: dev
+  memorySize: 256
+  timeout: 10
+  environment:
+    NODE_OPTIONS: --enable-source-maps
+
+  httpApi:
+    cors:
+      allowedOrigins:
+        - "*"
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+
+functions:
+  health:
+    handler: src/handler.health
+    events:
+      - httpApi:
+          path: /health
+          method: GET
+
+plugins:
+  - serverless-offline
