@@ -1,0 +1,12 @@
+node_modules
+.next
+dist
+build
+.env
+.env.local
+.env.production
+.serverless
+.aws-sam
+.DS_Store
+coverage
+.vercel
