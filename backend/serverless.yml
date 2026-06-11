@@ -11,6 +11,21 @@ provider:
   timeout: 10
   environment:
     NODE_OPTIONS: --enable-source-maps
+    ITEMS_TABLE: hackon6-items-dev
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:Scan
+            - dynamodb:Query
+            - dynamodb:DeleteItem
+            - dynamodb:UpdateItem
+          Resource:
+            - arn:aws:dynamodb:ap-south-1:*:table/hackon6-items-dev
 
   httpApi:
     cors:
@@ -32,6 +47,20 @@ functions:
     events:
       - httpApi:
           path: /health
+          method: GET
+
+  createItem:
+    handler: src/handler.createItem
+    events:
+      - httpApi:
+          path: /items
+          method: POST
+
+  listItems:
+    handler: src/handler.listItems
+    events:
+      - httpApi:
+          path: /items
           method: GET
 
 plugins:
