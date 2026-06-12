@@ -134,6 +134,7 @@ export default function Home() {
               Architecture
             </a>
           </div>
+          
 
           <div className="rounded-full bg-slate-950 px-5 py-2 text-sm font-semibold text-white">
             Backend: {healthStatus}
