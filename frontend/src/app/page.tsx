@@ -6,19 +6,30 @@ import {
   checkoutNowOrder,
   DecisionMode,
   generateNowPlan,
-  getCartItemCount,
-  getCartMode,
-  getCartTotal,
   getHealth,
+  getItems,
   getNowOrders,
   NowCartItem,
-  NowCartMode,
   NowOrder,
   NowPlan,
+  seedNowInventory,
   sendNowFeedback,
 } from "@/lib/api";
 
 const DEMO_USER_ID = "demo-user-001";
+
+type StoreProduct = {
+  id: string;
+  entityType?: string;
+  name: string;
+  category?: string;
+  aisle?: string;
+  price: number;
+  etaMinutes: number;
+  available?: boolean;
+  tags?: string[];
+  imageHint?: string;
+};
 
 const quickPrompts = [
   "4 friends are coming in 30 minutes",
@@ -27,212 +38,236 @@ const quickPrompts = [
   "I have an interview in 1 hour",
   "I need to clean my kitchen quickly",
   "It is raining and I need essentials",
-  "Baby care emergency",
-  "Late-night snacks for movie night",
 ];
 
-const aisles = [
+const navItems = [
   "All",
-  "Past Purchases",
-  "Aisles",
-  "Deals",
-  "Panic Mode",
+  "Fresh",
+  "Grocery",
+  "Snacks",
   "Breakfast",
-  "Guests",
   "Health",
   "Baby",
   "Cleaning",
-  "Work Essentials",
+  "Electronics",
+  "Deals",
+];
+
+const budgetOptions: { value: BudgetMode; label: string }[] = [
+  { value: "save", label: "Save" },
+  { value: "balanced", label: "Balanced" },
+  { value: "premium", label: "Premium" },
 ];
 
 const modeOptions: {
   value: DecisionMode;
   label: string;
-  subtitle: string;
+  helper: string;
 }[] = [
-  {
-    value: "fastest",
-    label: "Fastest",
-    subtitle: "Lowest ETA",
-  },
-  {
-    value: "bestValue",
-    label: "Best Value",
-    subtitle: "Balanced spend",
-  },
-  {
-    value: "mostComplete",
-    label: "Most Complete",
-    subtitle: "Covers more",
-  },
-];
-
-const budgetOptions: {
-  value: BudgetMode;
-  label: string;
-}[] = [
-  {
-    value: "save",
-    label: "Save",
-  },
-  {
-    value: "balanced",
-    label: "Balanced",
-  },
-  {
-    value: "premium",
-    label: "Premium",
-  },
+  { value: "fastest", label: "Fastest", helper: "lowest ETA" },
+  { value: "bestValue", label: "Best Value", helper: "balanced price" },
+  { value: "mostComplete", label: "Complete", helper: "fuller basket" },
 ];
 
 function formatPrice(value: number) {
   return `₹${Math.round(Number(value || 0))}`;
 }
 
-function getUrgencyStyle(label: string) {
-  const normalized = label.toLowerCase();
-
-  if (normalized.includes("critical")) {
-    return "bg-red-50 text-red-700 ring-red-200";
-  }
-
-  if (normalized.includes("high")) {
-    return "bg-orange-50 text-orange-700 ring-orange-200";
-  }
-
-  if (normalized.includes("medium")) {
-    return "bg-yellow-50 text-yellow-800 ring-yellow-200";
-  }
-
-  return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-}
-
-function MetricCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string;
-  helper: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
-      <p className="mt-1 text-xs text-slate-500">{helper}</p>
-    </div>
-  );
-}
-
-function ConfidenceBar({ label, value }: { label: string; value: number }) {
-  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
-
-  return (
-    <div>
-      <div className="mb-1 flex items-center justify-between text-xs">
-        <span className="font-medium text-slate-600">{label}</span>
-        <span className="font-bold text-slate-900">{safeValue}%</span>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className="h-full rounded-full bg-amber-400"
-          style={{ width: `${safeValue}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function ProductImageBadge({ name }: { name: string }) {
+function productEmoji(name: string) {
   const lower = name.toLowerCase();
 
-  let emoji = "📦";
-  if (lower.includes("cola") || lower.includes("juice")) emoji = "🥤";
-  else if (lower.includes("chips") || lower.includes("nachos")) emoji = "🍿";
-  else if (lower.includes("cup")) emoji = "🥛";
-  else if (lower.includes("tissue")) emoji = "🧻";
-  else if (lower.includes("milk")) emoji = "🥛";
-  else if (lower.includes("bread")) emoji = "🍞";
-  else if (lower.includes("banana")) emoji = "🍌";
-  else if (lower.includes("egg")) emoji = "🥚";
-  else if (lower.includes("ice cream")) emoji = "🍨";
-  else if (lower.includes("charger")) emoji = "🔌";
-  else if (lower.includes("cleaner")) emoji = "🧽";
-  else if (lower.includes("diaper") || lower.includes("baby")) emoji = "🍼";
-  else if (lower.includes("umbrella")) emoji = "☂️";
+  if (lower.includes("cola") || lower.includes("juice")) return "🥤";
+  if (lower.includes("chips") || lower.includes("nachos")) return "🍿";
+  if (lower.includes("cup")) return "🥛";
+  if (lower.includes("tissue")) return "🧻";
+  if (lower.includes("milk")) return "🥛";
+  if (lower.includes("bread")) return "🍞";
+  if (lower.includes("banana")) return "🍌";
+  if (lower.includes("egg")) return "🥚";
+  if (lower.includes("cereal")) return "🥣";
+  if (lower.includes("tea")) return "☕";
+  if (lower.includes("ice cream")) return "🍨";
+  if (lower.includes("charger")) return "🔌";
+  if (lower.includes("notebook") || lower.includes("pen")) return "📝";
+  if (lower.includes("deodorant")) return "🧴";
+  if (lower.includes("cleaner")) return "🧽";
+  if (lower.includes("diaper") || lower.includes("baby")) return "🍼";
+  if (lower.includes("umbrella")) return "☂️";
+  if (lower.includes("thermometer")) return "🌡️";
 
+  return "📦";
+}
+
+function productToCartItem(product: StoreProduct): NowCartItem {
+  return {
+    productId: product.id,
+    name: product.name,
+    quantity: 1,
+    price: product.price,
+    etaMinutes: product.etaMinutes,
+    reason: "Added from Amazon Now aisle.",
+  };
+}
+
+function uniqueCartItems(items: NowCartItem[]) {
+  const seen = new Set<string>();
+
+  return items.filter((item) => {
+    if (seen.has(item.productId)) return false;
+    seen.add(item.productId);
+    return true;
+  });
+}
+
+function buildDeckFromPlan(plan: NowPlan, mode: DecisionMode) {
+  const primary = plan.cartModes[mode]?.items || [];
+  const fastest = plan.cartModes.fastest?.items || [];
+  const bestValue = plan.cartModes.bestValue?.items || [];
+  const mostComplete = plan.cartModes.mostComplete?.items || [];
+
+  const regretItems: NowCartItem[] = (plan.regretPrevention || []).map(
+    (item) => ({
+      productId: item.productId,
+      name: item.name,
+      quantity: 1,
+      price: item.price,
+      etaMinutes: item.etaMinutes,
+      reason: item.reason,
+    })
+  );
+
+  return uniqueCartItems([
+    ...primary,
+    ...mostComplete,
+    ...fastest,
+    ...bestValue,
+    ...regretItems,
+  ]).slice(0, 6);
+}
+
+function getCartTotal(items: NowCartItem[]) {
+  return items.reduce((sum, item) => {
+    return sum + Number(item.price || 0) * Number(item.quantity || 1);
+  }, 0);
+}
+
+function getCartCount(items: NowCartItem[]) {
+  return items.reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+}
+
+function getCartEta(items: NowCartItem[]) {
+  if (!items.length) return 0;
+  return Math.max(...items.map((item) => Number(item.etaMinutes || 0)));
+}
+
+function SmallProductCard({
+  product,
+  onAdd,
+}: {
+  product: StoreProduct;
+  onAdd: (item: NowCartItem) => void;
+}) {
   return (
-    <div className="flex h-24 w-full items-center justify-center rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 text-5xl">
-      {emoji}
+    <div className="min-w-[142px] rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+      <div className="flex h-20 items-center justify-center rounded-lg bg-slate-50 text-4xl">
+        {productEmoji(product.name)}
+      </div>
+
+      <p className="mt-2 h-9 overflow-hidden text-xs font-bold leading-tight text-slate-900">
+        {product.name}
+      </p>
+
+      <div className="mt-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-black text-slate-950">
+          {formatPrice(product.price)}
+        </p>
+        <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
+          {product.etaMinutes}m
+        </span>
+      </div>
+
+      <button
+        onClick={() => onAdd(productToCartItem(product))}
+        className="mt-2 w-full rounded-full bg-amber-400 px-3 py-1.5 text-xs font-black text-slate-950 hover:bg-amber-300"
+      >
+        Add
+      </button>
     </div>
   );
 }
 
-function ProductCard({
+function DeckCard({
   item,
-  plan,
-  selectedMode,
+  index,
+  total,
+  onAdd,
+  onSkip,
+  disabled,
 }: {
   item: NowCartItem;
-  plan: NowPlan;
-  selectedMode: DecisionMode;
+  index: number;
+  total: number;
+  onAdd: () => void;
+  onSkip: () => void;
+  disabled?: boolean;
 }) {
-  const [feedbackSaved, setFeedbackSaved] = useState(false);
-
-  async function handleFeedback() {
-    try {
-      await sendNowFeedback({
-        userId: DEMO_USER_ID,
-        planId: plan.planId,
-        action: "removed_or_not_needed",
-        productId: item.productId,
-        productName: item.name,
-        selectedMode,
-        note: "User marked this recommendation as not needed from the cart UI.",
-      });
-      setFeedbackSaved(true);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
   return (
-    <div className="min-w-[180px] rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <ProductImageBadge name={item.name} />
+    <div className="relative">
+      <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-2xl bg-slate-200" />
+      <div className="absolute inset-0 translate-x-1.5 translate-y-1.5 rounded-2xl bg-slate-100" />
 
-      <div className="mt-3">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-2 text-sm font-bold leading-snug text-slate-950">
-            {item.name}
-          </h3>
-          <span className="rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700">
+      <div className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-wide text-amber-600">
+              Recommendation {index + 1} of {total}
+            </p>
+            <h3 className="mt-1 text-lg font-black leading-tight text-slate-950">
+              {item.name}
+            </h3>
+          </div>
+
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-black text-emerald-700">
             {item.etaMinutes}m
           </span>
         </div>
 
-        <p className="mt-2 text-lg font-black text-slate-950">
-          {formatPrice(item.price)}
-        </p>
+        <div className="mt-4 flex h-28 items-center justify-center rounded-xl bg-gradient-to-br from-slate-50 to-slate-100 text-6xl">
+          {productEmoji(item.name)}
+        </div>
 
-        <p className="mt-1 text-xs text-slate-500">Qty: {item.quantity}</p>
+        <div className="mt-4 flex items-center justify-between">
+          <div>
+            <p className="text-2xl font-black text-slate-950">
+              {formatPrice(item.price)}
+            </p>
+            <p className="text-xs text-slate-500">Qty: {item.quantity}</p>
+          </div>
 
-        <p className="mt-2 line-clamp-3 min-h-[48px] text-xs leading-relaxed text-slate-600">
+          <div className="rounded-xl bg-slate-950 px-3 py-2 text-right text-white">
+            <p className="text-[10px] text-slate-300">ETA</p>
+            <p className="text-sm font-black">{item.etaMinutes} min</p>
+          </div>
+        </div>
+
+        <p className="mt-3 min-h-[44px] text-xs leading-5 text-slate-600">
           {item.reason}
         </p>
 
-        <div className="mt-3 flex items-center gap-2">
-          <button className="flex-1 rounded-full bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-amber-300">
-            Added
-          </button>
+        <div className="mt-4 grid grid-cols-2 gap-3">
           <button
-            onClick={handleFeedback}
-            disabled={feedbackSaved}
-            className="rounded-full border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+            onClick={onSkip}
+            disabled={disabled}
+            className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
           >
-            {feedbackSaved ? "Saved" : "Skip"}
+            Skip
+          </button>
+          <button
+            onClick={onAdd}
+            disabled={disabled}
+            className="rounded-xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 hover:bg-amber-300 disabled:opacity-60"
+          >
+            Add to cart
           </button>
         </div>
       </div>
@@ -240,123 +275,454 @@ function ProductCard({
   );
 }
 
-function RegretCard({
-  item,
+function CartDrawer({
+  open,
+  onClose,
+  items,
+  onRemove,
+  onCheckout,
+  isCheckingOut,
+  checkoutMessage,
 }: {
-  item: {
-    productId: string;
-    name: string;
-    price: number;
-    etaMinutes: number;
-    reason: string;
-  };
+  open: boolean;
+  onClose: () => void;
+  items: NowCartItem[];
+  onRemove: (productId: string) => void;
+  onCheckout: () => void;
+  isCheckingOut: boolean;
+  checkoutMessage: string;
 }) {
+  const total = getCartTotal(items);
+  const count = getCartCount(items);
+  const eta = getCartEta(items);
+
+  if (!open) return null;
+
   return (
-    <div className="min-w-[190px] rounded-2xl border border-orange-100 bg-orange-50 p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-black text-slate-950">{item.name}</p>
-          <p className="mt-1 text-xs text-orange-800">{item.reason}</p>
+    <div className="fixed inset-0 z-50">
+      <button
+        aria-label="Close cart backdrop"
+        onClick={onClose}
+        className="absolute inset-0 bg-slate-950/45"
+      />
+
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-md flex-col bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-black text-slate-950">Your Cart</h2>
+            <p className="text-xs text-slate-500">
+              {count} items · ETA {eta || "--"} min
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-black text-slate-700"
+          >
+            ✕
+          </button>
         </div>
-        <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-orange-700">
-          {item.etaMinutes}m
-        </span>
-      </div>
-      <p className="mt-3 text-sm font-black text-slate-950">
-        {formatPrice(item.price)}
-      </p>
+
+        <div className="flex-1 space-y-3 overflow-y-auto p-5">
+          {items.length ? (
+            items.map((item) => (
+              <div
+                key={item.productId}
+                className="flex gap-3 rounded-xl border border-slate-200 p-3"
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-50 text-3xl">
+                  {productEmoji(item.name)}
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-black text-slate-950">
+                    {item.name}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Qty {item.quantity} · {item.etaMinutes}m
+                  </p>
+                  <p className="mt-1 text-sm font-black text-slate-950">
+                    {formatPrice(item.price * item.quantity)}
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => onRemove(item.productId)}
+                  className="h-fit rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-600"
+                >
+                  Remove
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-2xl bg-slate-50 p-6 text-center text-sm text-slate-500">
+              Your cart is empty. Add products from aisles or AI
+              recommendations.
+            </div>
+          )}
+
+          {checkoutMessage ? (
+            <div className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200">
+              {checkoutMessage}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="border-t border-slate-200 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm font-bold text-slate-600">Subtotal</p>
+            <p className="text-2xl font-black text-slate-950">
+              {formatPrice(total)}
+            </p>
+          </div>
+
+          <button
+            onClick={onCheckout}
+            disabled={!items.length || isCheckingOut}
+            className="w-full rounded-xl bg-amber-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isCheckingOut ? "Placing order..." : "Proceed to checkout"}
+          </button>
+        </div>
+      </aside>
     </div>
   );
 }
 
-function CartModeTabs({
-  selectedMode,
-  onChange,
+function AssistPanel({
+  open,
+  onClose,
+  userRequest,
+  setUserRequest,
+  budgetMode,
+  setBudgetMode,
+  decisionMode,
+  setDecisionMode,
+  panicMode,
+  setPanicMode,
+  onGenerate,
+  isGenerating,
   plan,
+  deckItems,
+  onAddDeckItem,
+  onSkipDeckItem,
+  error,
 }: {
-  selectedMode: DecisionMode;
-  onChange: (mode: DecisionMode) => void;
-  plan: NowPlan;
+  open: boolean;
+  onClose: () => void;
+  userRequest: string;
+  setUserRequest: (value: string) => void;
+  budgetMode: BudgetMode;
+  setBudgetMode: (value: BudgetMode) => void;
+  decisionMode: DecisionMode;
+  setDecisionMode: (value: DecisionMode) => void;
+  panicMode: boolean;
+  setPanicMode: (value: boolean) => void;
+  onGenerate: (event?: FormEvent) => void;
+  isGenerating: boolean;
+  plan: NowPlan | null;
+  deckItems: NowCartItem[];
+  onAddDeckItem: () => void;
+  onSkipDeckItem: () => void;
+  error: string;
 }) {
-  return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {modeOptions.map((mode) => {
-        const cartMode = getCartMode(plan, mode.value);
-        const isActive = selectedMode === mode.value;
+  if (!open) return null;
 
-        return (
+  const topItem = deckItems[0];
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-3 md:p-6">
+      <div className="mx-auto max-w-6xl overflow-hidden rounded-2xl bg-[#e8e8e8] shadow-2xl">
+        <div className="flex items-center justify-between bg-[#131921] px-4 py-3 text-white">
+          <div>
+            <p className="text-sm font-black">⚡ Amazon Now Assist</p>
+            <p className="text-xs text-slate-300">
+              AI urgent cart · Need-to-Cart in seconds
+            </p>
+          </div>
+
           <button
-            key={mode.value}
-            onClick={() => onChange(mode.value)}
-            className={`rounded-2xl border p-4 text-left transition ${
-              isActive
-                ? "border-amber-400 bg-amber-50 shadow-sm ring-2 ring-amber-200"
-                : "border-slate-200 bg-white hover:border-amber-200"
-            }`}
+            onClick={onClose}
+            className="rounded-full border border-slate-600 px-3 py-1.5 text-sm font-black"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="grid gap-4 p-4 lg:grid-cols-[0.8fr_1.2fr]">
+          <form
+            onSubmit={onGenerate}
+            className="rounded-2xl bg-white p-4 shadow-sm"
           >
             <div className="flex items-center justify-between gap-3">
-              <p className="font-black text-slate-950">{mode.label}</p>
-              <span className="rounded-full bg-slate-950 px-2 py-1 text-xs font-bold text-white">
-                {cartMode.etaMinutes}m
-              </span>
-            </div>
-            <p className="mt-1 text-xs font-medium text-slate-500">
-              {mode.subtitle}
-            </p>
-            <p className="mt-2 text-xs text-slate-600">{cartMode.modeReason}</p>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-wide text-amber-600">
+                  Urgent shortcut
+                </p>
+                <h2 className="text-xl font-black text-slate-950">
+                  What do you need right now?
+                </h2>
+              </div>
 
-function EmptyState() {
-  return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-3xl">
-        ⚡
+              <label className="flex cursor-pointer items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-black text-red-700">
+                <input
+                  type="checkbox"
+                  checked={panicMode}
+                  onChange={(event) => setPanicMode(event.target.checked)}
+                  className="accent-red-600"
+                />
+                Panic
+              </label>
+            </div>
+
+            <textarea
+              value={userRequest}
+              onChange={(event) => setUserRequest(event.target.value)}
+              rows={4}
+              className="mt-4 w-full resize-none rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium outline-none focus:border-amber-400 focus:bg-white"
+            />
+
+            <div className="mt-3">
+              <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                Budget
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {budgetOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    onClick={() => setBudgetMode(option.value)}
+                    className={`rounded-lg border px-2 py-2 text-xs font-black ${
+                      budgetMode === option.value
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <p className="mb-2 text-xs font-black uppercase text-slate-500">
+                Decision mode
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {modeOptions.map((option) => (
+                  <button
+                    type="button"
+                    key={option.value}
+                    onClick={() => setDecisionMode(option.value)}
+                    className={`rounded-lg border px-2 py-2 text-left ${
+                      decisionMode === option.value
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <p className="text-xs font-black text-slate-950">
+                      {option.label}
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {option.helper}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {quickPrompts.map((prompt) => (
+                <button
+                  type="button"
+                  key={prompt}
+                  onClick={() => setUserRequest(prompt)}
+                  className="rounded-full border border-slate-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-amber-50"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+
+            {error ? (
+              <div className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={isGenerating}
+              className="mt-4 w-full rounded-xl bg-amber-400 px-4 py-3 text-sm font-black text-slate-950 hover:bg-amber-300 disabled:opacity-70"
+            >
+              {isGenerating ? "Generating..." : "Generate recommendation deck"}
+            </button>
+          </form>
+
+          <section className="rounded-2xl bg-white p-4 shadow-sm">
+            {!plan ? (
+              <div className="flex min-h-[430px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-3xl">
+                  ⚡
+                </div>
+                <h3 className="mt-4 text-xl font-black text-slate-950">
+                  AI recommendation deck
+                </h3>
+                <p className="mt-2 max-w-md text-sm leading-6 text-slate-600">
+                  Generate a cart and review one item at a time. Add useful
+                  items, skip the rest, and your cart updates instantly.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-4 lg:grid-cols-[0.95fr_1fr]">
+                <div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-xl bg-red-50 p-3">
+                      <p className="text-[10px] font-black uppercase text-red-700">
+                        Urgency
+                      </p>
+                      <p className="text-lg font-black text-red-800">
+                        {plan.urgencyScore}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50 p-3">
+                      <p className="text-[10px] font-black uppercase text-emerald-700">
+                        Confidence
+                      </p>
+                      <p className="text-lg font-black text-emerald-800">
+                        {plan.confidence.overall}%
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-slate-100 p-3">
+                      <p className="text-[10px] font-black uppercase text-slate-600">
+                        Mode
+                      </p>
+                      <p className="text-lg font-black capitalize text-slate-950">
+                        {decisionMode}
+                      </p>
+                    </div>
+                  </div>
+
+                  <h3 className="mt-4 text-lg font-black text-slate-950">
+                    {plan.cartModes[decisionMode]?.cartTitle ||
+                      "AI urgent cart"}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {plan.aiExplanation}
+                  </p>
+
+                  <div className="mt-4 rounded-xl bg-slate-50 p-3">
+                    <p className="text-xs font-black text-slate-950">
+                      Why this stands out
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                      The app compresses shopping decisions from{" "}
+                      {plan.metrics.decisionsReducedFrom} to{" "}
+                      {plan.metrics.decisionsReducedTo}, then lets the customer
+                      accept or skip each AI-generated item.
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  {topItem ? (
+                    <DeckCard
+                      item={topItem}
+                      index={
+                        buildDeckFromPlan(plan, decisionMode).length -
+                        deckItems.length
+                      }
+                      total={buildDeckFromPlan(plan, decisionMode).length}
+                      onAdd={onAddDeckItem}
+                      onSkip={onSkipDeckItem}
+                      disabled={isGenerating}
+                    />
+                  ) : (
+                    <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl bg-emerald-50 p-6 text-center ring-1 ring-emerald-100">
+                      <div className="text-4xl">✅</div>
+                      <h3 className="mt-3 text-xl font-black text-emerald-900">
+                        Deck completed
+                      </h3>
+                      <p className="mt-2 text-sm text-emerald-800">
+                        You reviewed all AI recommendations. Open cart to check
+                        selected items.
+                      </p>
+                    </div>
+                  )}
+
+                  {deckItems.length > 0 ? (
+                    <p className="mt-4 text-center text-xs font-bold text-slate-500">
+                      {deckItems.length} cards remaining
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
-      <h3 className="mt-4 text-xl font-black text-slate-950">
-        Your AI cart will appear here
-      </h3>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-600">
-        Describe the urgent situation. Amazon Now Assist will generate Fastest,
-        Best Value, and Most Complete carts using AI, urgency, time context, and
-        available inventory.
-      </p>
     </div>
   );
 }
 
 export default function Home() {
   const [healthStatus, setHealthStatus] = useState("Checking");
+  const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [orders, setOrders] = useState<NowOrder[]>([]);
+  const [search, setSearch] = useState("");
+
+  const [assistOpen, setAssistOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
+
   const [userRequest, setUserRequest] = useState(
     "4 friends are coming in 30 minutes"
   );
   const [budgetMode, setBudgetMode] = useState<BudgetMode>("balanced");
   const [decisionMode, setDecisionMode] = useState<DecisionMode>("fastest");
-  const [selectedMode, setSelectedMode] = useState<DecisionMode>("fastest");
   const [panicMode, setPanicMode] = useState(true);
+
   const [plan, setPlan] = useState<NowPlan | null>(null);
-  const [orders, setOrders] = useState<NowOrder[]>([]);
+  const [deckItems, setDeckItems] = useState<NowCartItem[]>([]);
+  const [cartItems, setCartItems] = useState<NowCartItem[]>([]);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [error, setError] = useState("");
   const [checkoutMessage, setCheckoutMessage] = useState("");
 
-  const activeCart = useMemo<NowCartMode | null>(() => {
-    if (!plan) return null;
-    return getCartMode(plan, selectedMode);
-  }, [plan, selectedMode]);
+  const filteredProducts = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  const cartTotal = activeCart ? getCartTotal(activeCart) : 0;
-  const cartItemCount = activeCart ? getCartItemCount(activeCart) : 0;
+    if (!query) return products;
+
+    return products.filter((product) => {
+      return `${product.name} ${product.category || ""} ${product.aisle || ""}`
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [products, search]);
+
+  const productsByAisle = useMemo(() => {
+    const grouped = new Map<string, StoreProduct[]>();
+
+    filteredProducts.forEach((product) => {
+      const key = product.aisle || product.category || "Amazon Now";
+      const existing = grouped.get(key) || [];
+      grouped.set(key, [...existing, product]);
+    });
+
+    return Array.from(grouped.entries());
+  }, [filteredProducts]);
+
+  const cartTotal = getCartTotal(cartItems);
+  const cartCount = getCartCount(cartItems);
+  const cartEta = getCartEta(cartItems);
 
   async function loadInitialData() {
     try {
-      const [health, orderResponse] = await Promise.all([
+      const [health, itemResponse, orderResponse] = await Promise.all([
         getHealth(),
+        getItems(),
         getNowOrders(DEMO_USER_ID).catch(() => ({
           success: true,
           count: 0,
@@ -364,7 +730,25 @@ export default function Home() {
         })),
       ]);
 
-      setHealthStatus(health?.success ? "Live" : "Degraded");
+      setHealthStatus(health?.success ? "Live" : "Offline");
+
+      let productList = (itemResponse.items || []).filter(
+        (item) => item.entityType === "PRODUCT"
+      ) as unknown as StoreProduct[];
+
+      if (!productList.length) {
+        await seedNowInventory();
+        const freshItems = await getItems();
+        productList = (freshItems.items || []).filter(
+          (item) => item.entityType === "PRODUCT"
+        ) as unknown as StoreProduct[];
+      }
+
+      productList.sort((a, b) => {
+        return (a.etaMinutes || 99) - (b.etaMinutes || 99);
+      });
+
+      setProducts(productList);
       setOrders(orderResponse.orders || []);
     } catch (err) {
       console.error(err);
@@ -376,13 +760,41 @@ export default function Home() {
     loadInitialData();
   }, []);
 
+  function addToCart(item: NowCartItem) {
+    setCartItems((current) => {
+      const existing = current.find(
+        (cartItem) => cartItem.productId === item.productId
+      );
+
+      if (existing) {
+        return current.map((cartItem) =>
+          cartItem.productId === item.productId
+            ? {
+                ...cartItem,
+                quantity:
+                  Number(cartItem.quantity || 1) + Number(item.quantity || 1),
+              }
+            : cartItem
+        );
+      }
+
+      return [...current, item];
+    });
+  }
+
+  function removeFromCart(productId: string) {
+    setCartItems((current) =>
+      current.filter((item) => item.productId !== productId)
+    );
+  }
+
   async function handleGenerate(event?: FormEvent) {
     event?.preventDefault();
 
-    const trimmedRequest = userRequest.trim();
+    const trimmed = userRequest.trim();
 
-    if (!trimmedRequest) {
-      setError("Describe what you need right now.");
+    if (!trimmed) {
+      setError("Describe what you need urgently.");
       return;
     }
 
@@ -393,61 +805,180 @@ export default function Home() {
     try {
       const response = await generateNowPlan({
         userId: DEMO_USER_ID,
-        userRequest: trimmedRequest,
+        userRequest: trimmed,
         budgetMode,
         decisionMode,
         panicMode,
       });
 
       setPlan(response.plan);
-      setSelectedMode(response.plan.recommendedMode || decisionMode);
+      setDeckItems(buildDeckFromPlan(response.plan, decisionMode));
 
       await sendNowFeedback({
         userId: DEMO_USER_ID,
         planId: response.plan.planId,
-        action: "generated_plan",
-        selectedMode: response.plan.recommendedMode || decisionMode,
-        note: trimmedRequest,
+        action: "generated_recommendation_deck",
+        selectedMode: decisionMode,
+        note: trimmed,
       }).catch(() => null);
     } catch (err) {
       console.error(err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to generate your urgent cart."
-      );
+      setError(err instanceof Error ? err.message : "Failed to generate deck.");
     } finally {
       setIsGenerating(false);
     }
   }
 
+  async function handleAddDeckItem() {
+    const item = deckItems[0];
+    if (!item) return;
+
+    addToCart(item);
+    setDeckItems((current) => current.slice(1));
+
+    if (plan) {
+      await sendNowFeedback({
+        userId: DEMO_USER_ID,
+        planId: plan.planId,
+        action: "added_to_cart",
+        productId: item.productId,
+        productName: item.name,
+        selectedMode: decisionMode,
+        note: "Added from AI recommendation deck.",
+      }).catch(() => null);
+    }
+  }
+
+  async function handleSkipDeckItem() {
+    const item = deckItems[0];
+    if (!item) return;
+
+    setDeckItems((current) => current.slice(1));
+
+    if (plan) {
+      await sendNowFeedback({
+        userId: DEMO_USER_ID,
+        planId: plan.planId,
+        action: "skipped_recommendation",
+        productId: item.productId,
+        productName: item.name,
+        selectedMode: decisionMode,
+        note: "Skipped from AI recommendation deck.",
+      }).catch(() => null);
+    }
+  }
+
+  function buildCheckoutPlan(): NowPlan {
+    const now = new Date().toISOString();
+
+    if (plan) {
+      return {
+        ...plan,
+        checkoutSummary: {
+          ...plan.checkoutSummary,
+          estimatedTotal: cartTotal,
+          itemCount: cartCount,
+          etaMinutes: cartEta,
+        },
+        cartModes: {
+          ...plan.cartModes,
+          [decisionMode]: {
+            ...plan.cartModes[decisionMode],
+            items: cartItems,
+            etaMinutes: cartEta,
+            cartTitle: "Selected urgent cart",
+          },
+        },
+      };
+    }
+
+    return {
+      planId: `manual_${Date.now()}`,
+      userRequest: "Manual Amazon Now cart",
+      needCategory: "manual_cart",
+      urgencyLabel: "Medium",
+      urgencyScore: 50,
+      urgencyReason: "Customer selected products manually.",
+      peopleCount: 1,
+      timeContext: {
+        timeOfDay: "current",
+        reason: "Manual storefront order.",
+      },
+      budgetMode,
+      panicMode: false,
+      recommendedMode: decisionMode,
+      cartModes: {
+        fastest: {
+          modeLabel: "Fastest",
+          etaMinutes: cartEta,
+          cartTitle: "Manual Cart",
+          items: cartItems,
+          modeReason: "Customer selected these items manually.",
+        },
+        bestValue: {
+          modeLabel: "Best Value",
+          etaMinutes: cartEta,
+          cartTitle: "Manual Cart",
+          items: cartItems,
+          modeReason: "Customer selected these items manually.",
+        },
+        mostComplete: {
+          modeLabel: "Most Complete",
+          etaMinutes: cartEta,
+          cartTitle: "Manual Cart",
+          items: cartItems,
+          modeReason: "Customer selected these items manually.",
+        },
+      },
+      regretPrevention: [],
+      substitutions: [],
+      confidence: {
+        overall: 80,
+        needMatch: 80,
+        availabilityFit: 85,
+        budgetFit: 80,
+        completeness: 75,
+        reason: "Manual cart created from storefront selections.",
+      },
+      aiExplanation:
+        "This order was created from manual Amazon Now selections.",
+      checkoutSummary: {
+        estimatedTotal: cartTotal,
+        itemCount: cartCount,
+        etaMinutes: cartEta,
+        oneTapMessage: "Checkout your selected Amazon Now cart.",
+      },
+      metrics: {
+        estimatedTimeToCartSeconds: 0,
+        decisionsReducedFrom: cartCount,
+        decisionsReducedTo: cartCount,
+        forgottenEssentialsPrevented: 0,
+      },
+      userId: DEMO_USER_ID,
+      generatedAt: now,
+      modelId: "manual",
+    };
+  }
+
   async function handleCheckout() {
-    if (!plan) return;
+    if (!cartItems.length) return;
 
     setIsCheckingOut(true);
     setCheckoutMessage("");
     setError("");
 
     try {
+      const checkoutPlan = buildCheckoutPlan();
+
       const response = await checkoutNowOrder({
         userId: DEMO_USER_ID,
-        plan,
-        selectedMode,
+        plan: checkoutPlan,
+        selectedMode: decisionMode,
       });
 
       setCheckoutMessage(
-        `${response.message}. Order ${response.order.id.slice(0, 13)} saved.`
+        `${response.message}. ${cartCount} items saved to DynamoDB.`
       );
-
-      await sendNowFeedback({
-        userId: DEMO_USER_ID,
-        planId: plan.planId,
-        action: "checkout_completed",
-        selectedMode,
-        note: `Checked out ${cartItemCount} items worth ${formatPrice(
-          cartTotal
-        )}.`,
-      }).catch(() => null);
 
       const orderResponse = await getNowOrders(DEMO_USER_ID);
       setOrders(orderResponse.orders || []);
@@ -460,139 +991,114 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#e8e8e8] text-slate-950">
+    <main className="min-h-screen bg-[#eaeded] text-slate-950">
       <header className="sticky top-0 z-40 bg-[#131921] text-white shadow-md">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
           <div className="flex min-w-fit items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded bg-amber-400 text-lg font-black text-slate-950">
+            <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-400 text-base font-black text-slate-950">
               a
             </div>
             <div>
               <p className="text-sm font-black leading-none">Amazon Now</p>
-              <p className="text-[11px] text-slate-300">Assist</p>
+              <p className="text-[10px] text-slate-300">10-min essentials</p>
             </div>
           </div>
 
-          <div className="hidden min-w-fit text-xs md:block">
-            <p className="text-slate-300">Delivering to</p>
+          <div className="hidden min-w-fit text-[11px] md:block">
+            <p className="text-slate-300">Deliver to</p>
             <p className="font-bold">Gwalior 474001</p>
           </div>
 
-          <form
-            onSubmit={handleGenerate}
-            className="flex flex-1 overflow-hidden rounded-md bg-white"
-          >
-            <select
-              value={decisionMode}
-              onChange={(event) =>
-                setDecisionMode(event.target.value as DecisionMode)
-              }
-              className="hidden bg-slate-100 px-3 text-xs font-bold text-slate-700 outline-none md:block"
-            >
-              <option value="fastest">Fastest</option>
-              <option value="bestValue">Best Value</option>
-              <option value="mostComplete">Most Complete</option>
+          <div className="flex flex-1 overflow-hidden rounded-md bg-white">
+            <select className="hidden bg-slate-100 px-2 text-xs font-bold text-slate-700 outline-none md:block">
+              <option>Amazon Now</option>
             </select>
-
             <input
-              value={userRequest}
-              onChange={(event) => setUserRequest(event.target.value)}
-              placeholder="Tell us what you need right now"
-              className="min-w-0 flex-1 px-4 py-3 text-sm text-slate-950 outline-none"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search Amazon Now"
+              className="min-w-0 flex-1 px-3 py-2.5 text-sm text-slate-950 outline-none"
             />
-
-            <button
-              disabled={isGenerating}
-              className="bg-amber-400 px-5 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:opacity-70"
-            >
-              {isGenerating ? "..." : "⚡"}
+            <button className="bg-amber-400 px-4 text-sm font-black text-slate-950">
+              🔍
             </button>
-          </form>
-
-          <div className="hidden min-w-fit text-xs lg:block">
-            <p className="text-slate-300">Hello, demo</p>
-            <p className="font-bold">Account</p>
           </div>
 
-          <div className="hidden min-w-fit text-xs lg:block">
-            <p className="text-slate-300">Returns</p>
-            <p className="font-bold">& Orders</p>
-          </div>
+          <button
+            onClick={() => setAssistOpen(true)}
+            className="hidden rounded-md bg-[#00a8a8] px-3 py-2 text-xs font-black text-white hover:bg-[#009090] md:block"
+          >
+            ⚡ Need it now?
+          </button>
 
-          <button className="min-w-fit rounded-md border border-slate-600 px-3 py-2 text-sm font-black">
-            🛒 {cartItemCount}
+          <button
+            onClick={() => setCartOpen(true)}
+            className="min-w-fit rounded-md border border-slate-600 px-3 py-2 text-sm font-black"
+          >
+            🛒 {cartCount}
           </button>
         </div>
 
         <nav className="bg-[#232f3e]">
-          <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-4 py-2 text-sm font-medium text-white">
-            {aisles.map((aisle) => (
-              <button
-                key={aisle}
-                className="min-w-fit rounded px-1 py-1 transition hover:text-amber-300"
-              >
-                {aisle}
+          <div className="mx-auto flex max-w-7xl gap-4 overflow-x-auto px-4 py-1.5 text-xs font-bold text-white">
+            {navItems.map((item) => (
+              <button key={item} className="min-w-fit hover:text-amber-300">
+                {item}
               </button>
             ))}
           </div>
         </nav>
       </header>
 
-      <section className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xl font-black text-[#00a8a8]">
+      <section className="bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2">
+          <div className="flex items-center gap-3">
+            <span className="text-lg font-black text-[#00a8a8]">
               amazon now
             </span>
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">
-              AI Need-to-Cart
-            </span>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
-              Backend: {healthStatus}
-            </span>
+            <button
+              onClick={() => setAssistOpen(true)}
+              className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900 md:hidden"
+            >
+              ⚡ AI urgent cart
+            </button>
           </div>
 
-          <p className="text-sm text-slate-600">
-            Describe the situation. Get a ready cart in seconds.
+          <p className="text-xs font-medium text-slate-600">
+            Backend:{" "}
+            <span className="font-black text-emerald-700">{healthStatus}</span>
           </p>
         </div>
       </section>
 
-      <div className="mx-auto max-w-7xl px-4 py-5">
-        <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-[#d7f7f2] via-[#f7f2d7] to-[#ffe6b7] shadow-sm">
-          <div className="grid gap-6 p-6 md:grid-cols-[1.4fr_0.8fr] md:p-8">
+      <div className="mx-auto max-w-7xl px-4 py-4">
+        <section className="overflow-hidden rounded-2xl bg-gradient-to-r from-[#d7f7f2] via-[#fff2c8] to-[#ffdf9f] shadow-sm">
+          <div className="grid gap-4 p-5 md:grid-cols-[1.25fr_0.75fr]">
             <div>
-              <div className="inline-flex rounded-full bg-white/80 px-3 py-1 text-xs font-black text-slate-800">
-                ⚡ Urgent shopping, reimagined
-              </div>
-              <h1 className="mt-4 max-w-3xl text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Need it now? Tell us the situation. Get the cart in seconds.
-              </h1>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-700 md:text-base">
-                Amazon Now Assist converts real-life urgent needs into
-                AI-generated carts with urgency score, confidence, forgotten
-                essentials, and one-tap checkout.
+              <p className="text-xs font-black uppercase tracking-wide text-slate-700">
+                Amazon Now Assist
               </p>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {quickPrompts.slice(0, 5).map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => setUserRequest(prompt)}
-                    className="rounded-full bg-white/80 px-3 py-2 text-xs font-bold text-slate-800 shadow-sm transition hover:bg-white"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
+              <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 md:text-4xl">
+                Daily essentials, fast. Urgent carts, faster.
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
+                Shop normally from categories, or use the AI urgent shortcut
+                near the cart when you need a complete cart in seconds.
+              </p>
+              <button
+                onClick={() => setAssistOpen(true)}
+                className="mt-4 rounded-xl bg-[#131921] px-5 py-2.5 text-sm font-black text-white hover:bg-[#232f3e]"
+              >
+                ⚡ Open urgent recommendation deck
+              </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {["🥤 Drinks", "🍿 Snacks", "🧻 Essentials", "🍞 Breakfast"].map(
                 (item) => (
                   <div
                     key={item}
-                    className="flex min-h-24 items-center justify-center rounded-2xl bg-white/80 p-4 text-center text-lg font-black text-slate-900 shadow-sm"
+                    className="flex h-20 items-center justify-center rounded-xl bg-white/80 text-sm font-black text-slate-950 shadow-sm"
                   >
                     {item}
                   </div>
@@ -602,395 +1108,127 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.5fr]">
-          <aside className="space-y-5">
-            <form
-              onSubmit={handleGenerate}
-              className="rounded-3xl bg-white p-5 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-wide text-amber-600">
-                    Need-to-Cart Engine
-                  </p>
-                  <h2 className="mt-1 text-2xl font-black text-slate-950">
-                    What do you need right now?
-                  </h2>
-                </div>
-
-                <label className="flex cursor-pointer items-center gap-2 rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-700">
-                  <input
-                    type="checkbox"
-                    checked={panicMode}
-                    onChange={(event) => setPanicMode(event.target.checked)}
-                    className="accent-red-600"
-                  />
-                  Panic Mode
-                </label>
-              </div>
-
-              <textarea
-                value={userRequest}
-                onChange={(event) => setUserRequest(event.target.value)}
-                rows={4}
-                className="mt-4 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-medium text-slate-950 outline-none transition focus:border-amber-400 focus:bg-white focus:ring-2 focus:ring-amber-100"
-                placeholder="Example: 4 friends are coming in 30 minutes"
-              />
-
-              <div className="mt-4">
-                <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Budget
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {budgetOptions.map((option) => (
-                    <button
-                      type="button"
-                      key={option.value}
-                      onClick={() => setBudgetMode(option.value)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-black transition ${
-                        budgetMode === option.value
-                          ? "border-amber-400 bg-amber-50 text-slate-950"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">
-                  Decision Mode
-                </p>
-                <div className="grid gap-2">
-                  {modeOptions.map((option) => (
-                    <button
-                      type="button"
-                      key={option.value}
-                      onClick={() => {
-                        setDecisionMode(option.value);
-                        setSelectedMode(option.value);
-                      }}
-                      className={`rounded-xl border px-3 py-3 text-left transition ${
-                        decisionMode === option.value
-                          ? "border-amber-400 bg-amber-50"
-                          : "border-slate-200 bg-white hover:bg-slate-50"
-                      }`}
-                    >
-                      <p className="text-sm font-black text-slate-950">
-                        {option.label}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {option.subtitle}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {error ? (
-                <div className="mt-4 rounded-2xl bg-red-50 p-3 text-sm font-medium text-red-700">
-                  {error}
-                </div>
-              ) : null}
-
-              <button
-                type="submit"
-                disabled={isGenerating}
-                className="mt-5 w-full rounded-2xl bg-amber-400 px-5 py-4 text-base font-black text-slate-950 shadow-sm transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {isGenerating ? "Generating AI cart..." : "Generate Now Cart"}
-              </button>
-            </form>
-
-            <div className="rounded-3xl bg-white p-5 shadow-sm">
-              <h3 className="text-lg font-black text-slate-950">
-                Quick situations
-              </h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {quickPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => setUserRequest(prompt)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:border-amber-300 hover:bg-amber-50"
-                  >
-                    {prompt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </aside>
-
-          <section className="space-y-5">
-            {!plan || !activeCart ? (
-              <EmptyState />
-            ) : (
-              <>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <MetricCard
-                    label="Urgency"
-                    value={`${plan.urgencyScore}/100`}
-                    helper={plan.urgencyLabel}
-                  />
-                  <MetricCard
-                    label="Cart Confidence"
-                    value={`${plan.confidence.overall}%`}
-                    helper="AI confidence"
-                  />
-                  <MetricCard
-                    label="Delivery ETA"
-                    value={`${activeCart.etaMinutes} min`}
-                    helper="Mode estimate"
-                  />
-                  <MetricCard
-                    label="Decisions"
-                    value={`${plan.metrics.decisionsReducedFrom} → ${plan.metrics.decisionsReducedTo}`}
-                    helper="Decision compression"
-                  />
-                </div>
-
-                <div className="rounded-3xl bg-white p-5 shadow-sm">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-black ring-1 ${getUrgencyStyle(
-                            plan.urgencyLabel
-                          )}`}
-                        >
-                          {plan.urgencyLabel} urgency
-                        </span>
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-                          {plan.needCategory}
-                        </span>
-                        <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-black text-cyan-700">
-                          {plan.timeContext.timeOfDay}
-                        </span>
-                      </div>
-
-                      <h2 className="mt-3 text-2xl font-black text-slate-950">
-                        {activeCart.cartTitle}
-                      </h2>
-                      <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                        {plan.aiExplanation}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-slate-950 px-5 py-4 text-white">
-                      <p className="text-xs text-slate-300">Selected total</p>
-                      <p className="text-2xl font-black">
-                        {formatPrice(cartTotal)}
-                      </p>
-                      <p className="text-xs text-slate-300">
-                        {cartItemCount} items
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <CartModeTabs
-                  selectedMode={selectedMode}
-                  onChange={setSelectedMode}
-                  plan={plan}
-                />
-
-                <div className="rounded-3xl bg-white p-5 shadow-sm">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-xl font-black text-slate-950">
-                        AI-generated cart
-                      </h3>
-                      <p className="text-sm text-slate-500">
-                        {activeCart.modeReason}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700">
-                      Arrives in {activeCart.etaMinutes}m
-                    </span>
-                  </div>
-
-                  <div className="flex gap-4 overflow-x-auto pb-2">
-                    {activeCart.items.map((item) => (
-                      <ProductCard
-                        key={item.productId}
-                        item={item}
-                        plan={plan}
-                        selectedMode={selectedMode}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid gap-5 lg:grid-cols-2">
-                  <div className="rounded-3xl bg-white p-5 shadow-sm">
-                    <h3 className="text-lg font-black text-slate-950">
-                      People often forget these
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Regret-prevention suggestions generated by AI.
-                    </p>
-
-                    {plan.regretPrevention.length > 0 ? (
-                      <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-                        {plan.regretPrevention.map((item) => (
-                          <RegretCard key={item.productId} item={item} />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                        No extra forgotten essentials detected for this cart.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="rounded-3xl bg-white p-5 shadow-sm">
-                    <h3 className="text-lg font-black text-slate-950">
-                      Confidence breakdown
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {plan.confidence.reason}
-                    </p>
-
-                    <div className="mt-4 space-y-3">
-                      <ConfidenceBar
-                        label="Need match"
-                        value={plan.confidence.needMatch}
-                      />
-                      <ConfidenceBar
-                        label="Availability fit"
-                        value={plan.confidence.availabilityFit}
-                      />
-                      <ConfidenceBar
-                        label="Budget fit"
-                        value={plan.confidence.budgetFit}
-                      />
-                      <ConfidenceBar
-                        label="Completeness"
-                        value={plan.confidence.completeness}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl bg-white p-5 shadow-sm">
-                  <h3 className="text-lg font-black text-slate-950">
-                    Faster alternatives
-                  </h3>
-
-                  {plan.substitutions.length > 0 ? (
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      {plan.substitutions.map((substitution) => (
-                        <div
-                          key={`${substitution.originalProductId}-${substitution.suggestedProductId}`}
-                          className="rounded-2xl border border-slate-200 p-4"
-                        >
-                          <p className="text-sm font-black text-slate-950">
-                            {substitution.originalName} →{" "}
-                            {substitution.suggestedName}
-                          </p>
-                          <p className="mt-1 text-xs text-emerald-700">
-                            Saves {substitution.minutesSaved} minutes
-                          </p>
-                          <p className="mt-2 text-xs text-slate-600">
-                            {substitution.reason}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-                      No substitution needed. Current cart already fits
-                      availability and urgency.
-                    </p>
-                  )}
-                </div>
-
-                {checkoutMessage ? (
-                  <div className="rounded-3xl bg-emerald-50 p-5 text-sm font-bold text-emerald-800 ring-1 ring-emerald-200">
-                    {checkoutMessage}
-                  </div>
-                ) : null}
-              </>
-            )}
-          </section>
+        <section className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl bg-white p-3 shadow-sm">
+            <p className="text-[11px] font-black uppercase text-slate-500">
+              AI feature
+            </p>
+            <p className="mt-1 text-lg font-black text-slate-950">
+              Need-to-Cart
+            </p>
+          </div>
+          <div className="rounded-xl bg-white p-3 shadow-sm">
+            <p className="text-[11px] font-black uppercase text-slate-500">
+              Decision flow
+            </p>
+            <p className="mt-1 text-lg font-black text-slate-950">Add / Skip</p>
+          </div>
+          <div className="rounded-xl bg-white p-3 shadow-sm">
+            <p className="text-[11px] font-black uppercase text-slate-500">
+              Products
+            </p>
+            <p className="mt-1 text-lg font-black text-slate-950">
+              {products.length}
+            </p>
+          </div>
+          <div className="rounded-xl bg-white p-3 shadow-sm">
+            <p className="text-[11px] font-black uppercase text-slate-500">
+              Orders
+            </p>
+            <p className="mt-1 text-lg font-black text-slate-950">
+              {orders.length}
+            </p>
+          </div>
         </section>
 
-        <section className="mt-5 rounded-3xl bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-black text-slate-950">
-                Past urgent orders
-              </h2>
-              <p className="text-sm text-slate-500">
-                Stored in DynamoDB for personalization memory.
-              </p>
-            </div>
-
-            <button
-              onClick={loadInitialData}
-              className="rounded-full border border-slate-200 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {orders.length > 0 ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              {orders.slice(0, 6).map((order) => (
-                <div
-                  key={order.id}
-                  className="rounded-2xl border border-slate-200 p-4"
-                >
-                  <p className="text-sm font-black text-slate-950">
-                    {order.plan?.needCategory || "Urgent order"}
-                  </p>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                    {order.plan?.userRequest}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-700">
-                      {order.selectedMode}
-                    </span>
-                    <span className="rounded-full bg-emerald-50 px-2 py-1 font-bold text-emerald-700">
-                      {order.status}
-                    </span>
+        <section className="mt-4 space-y-5">
+          {productsByAisle.length ? (
+            productsByAisle.map(([aisle, aisleProducts]) => (
+              <div key={aisle} className="rounded-2xl bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-black text-slate-950">
+                      {aisle}
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Fast-moving Amazon Now essentials
+                    </p>
                   </div>
+                  <button className="text-xs font-black text-[#007185]">
+                    See all
+                  </button>
                 </div>
-              ))}
-            </div>
+
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {aisleProducts.map((product) => (
+                    <SmallProductCard
+                      key={product.id}
+                      product={product}
+                      onAdd={addToCart}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))
           ) : (
-            <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">
-              No orders yet. Generate a cart and checkout to create the first
-              urgent order.
-            </p>
+            <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+              Loading Amazon Now products...
+            </div>
           )}
         </section>
       </div>
 
-      {plan && activeCart ? (
-        <div className="sticky bottom-0 z-40 border-t border-slate-200 bg-white/95 shadow-[0_-8px_30px_rgba(15,23,42,0.12)] backdrop-blur">
-          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between">
+      {cartItems.length ? (
+        <div className="sticky bottom-0 z-30 border-t border-slate-200 bg-white/95 shadow-[0_-8px_25px_rgba(15,23,42,0.12)] backdrop-blur">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
             <div>
               <p className="text-sm font-black text-slate-950">
-                {cartItemCount} items · {formatPrice(cartTotal)} · ETA{" "}
-                {activeCart.etaMinutes} min
+                {cartCount} items · {formatPrice(cartTotal)}
               </p>
               <p className="text-xs text-slate-500">
-                {plan.checkoutSummary.oneTapMessage}
+                Estimated delivery {cartEta} min
               </p>
             </div>
 
             <button
-              onClick={handleCheckout}
-              disabled={isCheckingOut}
-              className="rounded-2xl bg-amber-400 px-8 py-3 text-sm font-black text-slate-950 shadow-sm transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-70"
+              onClick={() => setCartOpen(true)}
+              className="rounded-xl bg-amber-400 px-5 py-2.5 text-sm font-black text-slate-950 hover:bg-amber-300"
             >
-              {isCheckingOut ? "Placing order..." : "Checkout Now"}
+              View cart / Checkout
             </button>
           </div>
         </div>
       ) : null}
+
+      <AssistPanel
+        open={assistOpen}
+        onClose={() => setAssistOpen(false)}
+        userRequest={userRequest}
+        setUserRequest={setUserRequest}
+        budgetMode={budgetMode}
+        setBudgetMode={setBudgetMode}
+        decisionMode={decisionMode}
+        setDecisionMode={setDecisionMode}
+        panicMode={panicMode}
+        setPanicMode={setPanicMode}
+        onGenerate={handleGenerate}
+        isGenerating={isGenerating}
+        plan={plan}
+        deckItems={deckItems}
+        onAddDeckItem={handleAddDeckItem}
+        onSkipDeckItem={handleSkipDeckItem}
+        error={error}
+      />
+
+      <CartDrawer
+        open={cartOpen}
+        onClose={() => setCartOpen(false)}
+        items={cartItems}
+        onRemove={removeFromCart}
+        onCheckout={handleCheckout}
+        isCheckingOut={isCheckingOut}
+        checkoutMessage={checkoutMessage}
+      />
     </main>
   );
 }

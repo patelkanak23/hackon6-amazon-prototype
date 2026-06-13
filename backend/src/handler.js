@@ -729,6 +729,11 @@ Very important rules:
 33. Every cart mode must match the same user need, but optimize differently for Fastest, Best Value, and Most Complete.
 34. Never convert a breakfast request into a party/snack cart.
 35. Never convert a guest/party request into a breakfast cart.
+36. Every cart mode should contain at least 5 valid products when the inventory has enough relevant products.
+37. The recommended mode should ideally contain 5 to 6 products.
+38. The frontend displays recommendations as a swipe-style card deck, so return enough products for the user to add or skip one by one.
+39. Do not pad the cart with irrelevant products just to reach the count. Relevance is more important than count.
+40. If the current user need has fewer than 5 strongly relevant products, include the most useful supporting products from the same intent area.
 
 User request:
 ${userRequest}
@@ -918,9 +923,9 @@ const generatePlanWithBedrock = async ({
   });
 
   const hasIncompleteModes =
-    normalizedPlan.cartModes.fastest.items.length < 3 ||
-    normalizedPlan.cartModes.bestValue.items.length < 3 ||
-    normalizedPlan.cartModes.mostComplete.items.length < 3;
+    normalizedPlan.cartModes.fastest.items.length < 5 ||
+    normalizedPlan.cartModes.bestValue.items.length < 5 ||
+    normalizedPlan.cartModes.mostComplete.items.length < 5;
 
   if (hasIncompleteModes) {
     const repairPrompt = `
@@ -930,7 +935,7 @@ Your task:
 Repair the plan while preserving the user's explicit intent.
 
 Critical repair rules:
-1. Each of fastest, bestValue, and mostComplete must contain at least 3 valid products.
+1. Each of fastest, bestValue, and mostComplete must contain at least 7 valid products.
 2. Product IDs must be copied exactly from the provided inventory "id" field.
 3. Do not invent, shorten, rename, or approximate product IDs.
 4. The user's explicit request is the strongest signal.
