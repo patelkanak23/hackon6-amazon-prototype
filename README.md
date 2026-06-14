@@ -366,4 +366,4 @@ The current version demonstrates:
 
 This project is intended for hackathon demonstration and evaluation.
 
-# Mode with 🧡 by Team_ZooZoo for HackOn with Amazon 6.0
+## Mode with 🧡 by Team_ZooZoo for HackOn with Amazon 6.0
