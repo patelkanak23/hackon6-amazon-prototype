@@ -1,723 +1,369 @@
-# HackOn 6.0 Amazon Prototype
+# Amazon Now – Instant Cart
 
-A scalable AWS-first hackathon prototype built for Amazon HackOn 6.0.
+> Situation-aware quick-commerce: describe the moment, get a verified cart in seconds.
 
-This repository is our prepared base stack for the 48-hour virtual hackathon. It currently includes a polished Next.js frontend, a deployed AWS Lambda backend, API Gateway routing, DynamoDB persistence, and readiness for Amazon Bedrock AI integration.
+Amazon Now – Instant Cart is a HackOn with Amazon prototype that reimagines urgent shopping for quick-commerce customers. Instead of asking users to search product-by-product, the app lets them describe a real-life situation such as **“I cut my finger while cooking”**, **“guests are coming in 30 minutes”**, or **“there may be a power cut tonight”**. The system understands the need, retrieves relevant products, builds cart modes, verifies usefulness, and lets the customer review and checkout quickly.
 
 ---
 
-## Current Live Backend
+## Links
 
-API Base URL:
+- **Demo Video:** https://drive.google.com/file/d/1zaPHkdI_9jAul-5NumaGW08eMzueBlt1/view?usp=sharing
+- **Live App:** https://main.d2a6skx8ok931x.amplifyapp.com
+- **Backend API:** https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com
+- **GitHub:** https://github.com/nilaysrivastava/hackon6-amazon-prototype
+
+---
+
+## Problem Statement
+
+Quick-commerce customers often arrive with a situation, not a product list.
+
+A user may know what happened, but not every SKU required to solve it. Current shopping flows still require manual searching, comparing, remembering supporting items, and assembling a cart. This creates friction precisely when urgency is highest.
+
+Amazon Now – Instant Cart reduces that journey to:
 
 ```txt
-https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com
+Describe the situation → Review AI-built essentials → Checkout
 ```
 
-Available endpoints:
+The goal is simple: help customers discover, decide, and purchase urgent needs faster.
+
+---
+
+## What It Does
+
+Amazon Now – Instant Cart converts a natural-language or voice situation into a verified, ready-to-review shopping cart.
+
+### Core Capabilities
+
+- **Situation-first shopping:** users describe what happened instead of searching SKU-by-SKU.
+- **Voice and text input:** users can type or speak their urgent need.
+- **AI-built verified cart:** backend retrieves, plans, verifies, and filters relevant products.
+- **Three cart modes:** Fastest, Best Value, and Most Complete.
+- **Item-by-item review deck:** users can add useful items and skip irrelevant ones.
+- **Cart and checkout flow:** selected items move into a cart drawer and checkout creates an order.
+- **Order history and timeline:** placed orders are stored and shown with progress.
+- **Feedback capture:** add, skip, refine, and checkout signals are stored for future improvement.
+
+---
+
+## Example Use Cases
+
+| Situation Prompt | Expected Cart Behavior |
+|---|---|
+| `I cut my finger while cooking` | First-aid essentials such as bandages, antiseptic, and cotton |
+| `Guests are coming in 30 minutes` | Snacks, drinks, water, and serving essentials |
+| `There may be a power cut tonight` | Candles, matchbox, torch, and batteries |
+| `I have an interview in one hour` | Grooming and readiness items |
+| `It is raining and I need to leave` | Raincoat, umbrella, towel, and travel support |
+
+---
+
+## Product Workflow
 
 ```txt
-GET  /health
-POST /items
-GET  /items
+1. Describe
+   User enters a text or voice prompt such as:
+   “4 friends are coming in 30 minutes.”
+
+2. Generate
+   Backend extracts intent, retrieves relevant products, plans the cart,
+   verifies usefulness, and returns cart modes.
+
+3. Review
+   User reviews item cards, adds or skips products,
+   optionally refines the cart, and checks out.
 ```
+
+---
+
+## Architecture Flow
+
+```txt
+User situation prompt
+    ↓
+Next.js frontend
+    ↓
+API Gateway
+    ↓
+Lambda orchestration
+    ↓
+DynamoDB inventory + embeddings
+    ↓
+Bedrock Titan retrieval
+    ↓
+Nova Pro planner
+    ↓
+Nova verifier / reranker
+    ↓
+Verified cart modes
+    ↓
+Cart review
+    ↓
+Checkout
+    ↓
+DynamoDB orders / feedback
+```
+
+---
+
+## AI Pipeline
+
+The backend uses a retrieval-planning-verification pipeline instead of hardcoded scenario templates.
+
+### 1. Intent Extraction
+
+The user’s free-form prompt is converted into structured signals:
+
+- need category
+- urgency
+- people count
+- time/deadline context
+- budget preference
+- required product roles
+- situation summary
+
+### 2. Semantic Retrieval
+
+Product embeddings are precomputed for the seeded catalog. At request time, the user’s intent is embedded and compared against product-purpose metadata using cosine similarity.
+
+This helps the system rank products by meaning, not just keyword overlap.
+
+### 3. Nova Cart Planning
+
+Amazon Nova Pro receives a relevant candidate pool and creates situation-aware cart recommendations with:
+
+- item reasons
+- cart summaries
+- suggested quantities
+- urgency interpretation
+- Fastest / Best Value / Most Complete modes
+
+### 4. Verifier and Reranker
+
+A second generic LLM pass checks whether each selected item is directly useful for the situation. It removes filler products, lowers skipped items, and allows smaller but more accurate carts when only a few products are truly relevant.
+
+### 5. Deterministic Cart-Mode Builder
+
+The final cart modes are built from the verified pool using:
+
+- delivery ETA
+- price
+- relevance
+- coverage
+- usefulness signals
+
+A fast product cannot enter the cart only because it has a low ETA. It must be relevant and useful for the user’s situation.
 
 ---
 
 ## Tech Stack
 
-### Frontend
-
-```txt
-Next.js
-TypeScript
-Tailwind CSS
-App Router
-Responsive Amazon-like light UI
-```
-
-### Backend
-
-```txt
-AWS Lambda
-Amazon API Gateway HTTP API
-Serverless Framework v3
-Node.js 20.x
-```
-
-### Database
-
-```txt
-Amazon DynamoDB
-Table: hackon6-items-dev
-Partition Key: id
-Billing Mode: On-demand
-```
-
-### AI / GenAI Ready
-
-```txt
-Amazon Bedrock
-Amazon Nova Micro
-Amazon Nova Pro
-Titan Text
-Titan Embeddings
-```
-
-AI is not hardcoded yet. It will be added only if it clearly improves the final solution after the problem statement is released.
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | Next.js, TypeScript, Tailwind CSS | Responsive storefront and Instant Cart UI |
+| UI Flow | React components | Prompt input, cart deck, drawers, checkout, orders |
+| Backend | AWS Lambda, Node.js | Serverless orchestration and business logic |
+| API | Amazon API Gateway | Public HTTPS endpoints |
+| Database | Amazon DynamoDB | Products, embeddings, orders, feedback |
+| AI Models | Amazon Bedrock Nova Pro, Nova Micro | Planning, verification, fallback |
+| Embeddings | Amazon Titan Embed Text v2 | Semantic product retrieval |
+| Deployment | AWS Amplify, Serverless Framework | Frontend and backend deployment |
+| Monitoring | CloudWatch | Logs and debugging |
 
 ---
 
-## Repository Structure
+## Backend Endpoints
 
-```txt
-hackon6-amazon-prototype/
-├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── globals.css
-│   │   │   ├── layout.tsx
-│   │   │   └── page.tsx
-│   │   └── lib/
-│   │       └── api.ts
-│   ├── .env.example
-│   ├── .env.local
-│   └── package.json
-│
-├── backend/
-│   ├── src/
-│   │   └── handler.js
-│   ├── .env.example
-│   ├── serverless.yml
-│   └── package.json
-│
-├── .gitignore
-└── README.md
-```
+| Method | Route | Purpose |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `POST` | `/items` | Create test item |
+| `GET` | `/items` | List test items |
+| `POST` | `/ask` | Bedrock test route |
+| `POST` | `/now/seed` | Seed product catalog |
+| `GET` | `/now/products` | List products |
+| `POST` | `/now/embed-products` | Generate product embeddings |
+| `POST` | `/now/plan` | Generate AI cart plan |
+| `POST` | `/now/checkout` | Create order |
+| `GET` | `/now/orders` | List orders |
+| `GET` | `/now/orders/{orderId}/track` | Track order |
+| `POST` | `/now/feedback` | Store user feedback |
 
 ---
 
-## Frontend Environment Variables
+## Frontend Highlights
 
-File:
+The frontend is designed to feel like a production quick-commerce storefront, not a simple hackathon form.
 
-```txt
-frontend/.env.local
-```
+### Implemented UI
 
-Content:
-
-```env
-NEXT_PUBLIC_API_BASE_URL=https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com
-```
-
-Example file:
-
-```txt
-frontend/.env.example
-```
-
-Content:
-
-```env
-NEXT_PUBLIC_API_BASE_URL=https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com
-```
+- Amazon-inspired header and storefront layout
+- Responsive mobile-ready design
+- Product/category shelves
+- Instant Cart assistant modal
+- Text and voice prompt input
+- AI loading state
+- Cart-mode comparison
+- Item-by-item recommendation deck
+- Cart drawer with checkout
+- Order history drawer
+- Order progress timeline
+- Footer and polished visual layout
 
 ---
 
-## Backend Environment Variables
+## Data Model Overview
 
-Backend Lambda environment variables are currently configured inside `backend/serverless.yml`.
+The project uses DynamoDB for a simple, scalable data layer.
 
-Reference file:
+### Product Records
 
-```txt
-backend/.env.example
-```
+Products include:
 
-Content:
+- product id
+- title/name
+- category
+- aisle/entity
+- price
+- ETA
+- tags
+- product-purpose metadata
+- Titan embedding vector
 
-```env
-AWS_REGION=ap-south-1
-STAGE=dev
-ITEMS_TABLE=hackon6-items-dev
-```
+### Order Records
 
-Do not put AWS access keys or secret keys inside project files.
+Orders include:
 
-Never commit:
+- order id
+- user id/session id
+- selected items
+- total amount
+- estimated delivery time
+- status/timeline
+- timestamps
 
-```env
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-```
+### Feedback Records
 
-AWS credentials should remain in local AWS CLI configuration.
+Feedback includes:
+
+- generated items
+- added items
+- skipped items
+- refined prompts
+- checkout actions
+- need category
+- cart metadata
+
+This creates a useful loop for future personalization, skipped-product avoidance, and demand prediction.
+
+---
+
+## Scaling Strategy
+
+The system is designed as a cloud-native, serverless architecture.
+
+- **Stateless APIs:** Lambda and API Gateway scale horizontally without server management.
+- **DynamoDB access patterns:** products, orders, and feedback are stored in a scalable NoSQL layer.
+- **Precomputed embeddings:** product vectors are generated ahead of request time.
+- **Cached inventory:** stale-while-revalidate behavior reduces repeated reads and latency.
+- **Parallel operations:** independent backend operations run in parallel where possible.
+- **Model fallback:** Nova Micro fallback keeps the system resilient if the primary planner path is slow or unavailable.
+- **Future vector index:** at larger catalog scale, cosine ranking can move to a managed vector index while preserving the planner/verifier contract.
+
+---
+
+## Why This Is Different
+
+Most shopping assistants behave like chatbots or search wrappers. Amazon Now – Instant Cart is designed as a decision system.
+
+It does not simply return search results. It:
+
+1. understands the user’s situation,
+2. retrieves semantically relevant inventory,
+3. plans a cart,
+4. verifies usefulness,
+5. removes filler,
+6. presents simple cart modes,
+7. captures feedback after review and checkout.
+
+The key idea is **situation-to-cart intelligence**.
+
+---
+
+## Future Vision
+
+Amazon Now can evolve into a situation-aware commerce layer that understands real-life moments, not just keywords.
+
+Potential expansion areas:
+
+- first aid and healthcare kits
+- baby care
+- festival hosting
+- travel packing
+- office and school readiness
+- emergency preparedness
+- household restocking
+- hospitality and B2B essentials
+
+Because the pipeline is catalog-agnostic, new segments mainly require better product metadata, fulfillment constraints, embeddings, and safety policies rather than a new app from scratch.
 
 ---
 
 ## Local Development
 
-### 1. Clone repository
+### Prerequisites
+
+- Node.js 20+
+- npm
+- AWS CLI configured
+- AWS account with Bedrock model access
+- Serverless Framework v3
+- DynamoDB table configured
+- Amplify deployment for frontend
+
+### Repository Setup
 
 ```bash
 git clone https://github.com/nilaysrivastava/hackon6-amazon-prototype.git
 cd hackon6-amazon-prototype
 ```
 
-### 2. Install frontend dependencies
+### Frontend
 
 ```bash
 cd frontend
 npm install
-```
-
-### 3. Start frontend
-
-```bash
 npm run dev
 ```
 
-Frontend runs at:
-
-```txt
-http://localhost:3000
-```
-
-### 4. Install backend dependencies
-
-```bash
-cd ../backend
-npm install
-```
-
-### 5. Run backend locally
-
-```bash
-npx serverless offline
-```
-
-Local backend runs at:
-
-```txt
-http://localhost:3000
-```
-
-Local endpoints:
-
-```txt
-GET  http://localhost:3000/health
-POST http://localhost:3000/items
-GET  http://localhost:3000/items
-```
-
----
-
-## API Testing
-
-### Health Check
-
-```bash
-curl https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com/health
-```
-
-Expected response:
-
-```json
-{
-  "success": true,
-  "message": "HackOn 6.0 backend is healthy",
-  "service": "hackon6-api",
-  "timestamp": "..."
-}
-```
-
-### Create Item
-
-```bash
-curl -X POST https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com/items   -H "Content-Type: application/json"   -d '{
-    "title": "Live DynamoDB Test",
-    "description": "This item was created through deployed API Gateway and Lambda.",
-    "status": "active"
-  }'
-```
-
-### List Items
-
-```bash
-curl https://np1mz79jr2.execute-api.ap-south-1.amazonaws.com/items
-```
-
----
-
-## Deployment
-
-### Deploy Backend
+### Backend
 
 ```bash
 cd backend
+npm install
 npx serverless deploy
 ```
 
-Expected deployed resources:
+---
 
-```txt
-AWS Lambda functions
-API Gateway HTTP API
-IAM role permissions
-CloudWatch logs
-```
+## Team Notes
 
-### Remove Backend Stack
+This project was built for HackOn with Amazon as a working prototype focused on urgent quick-commerce discovery, decision-making, and checkout.
 
-Only use this if you intentionally want to delete deployed resources:
+The current version demonstrates:
 
-```bash
-cd backend
-npx serverless remove
-```
+- deployed frontend
+- deployed backend API
+- DynamoDB-backed inventory/orders/feedback
+- Amazon Bedrock integration
+- Titan semantic retrieval
+- Nova planning and verification
+- end-to-end cart and checkout flow
 
 ---
 
-## Current Backend Functions
+This project is intended for hackathon demonstration and evaluation.
 
-### health
-
-Purpose:
-
-```txt
-Confirms that the backend is reachable and healthy.
-```
-
-Route:
-
-```txt
-GET /health
-```
-
-### createItem
-
-Purpose:
-
-```txt
-Creates a new item and stores it in DynamoDB.
-```
-
-Route:
-
-```txt
-POST /items
-```
-
-Expected body:
-
-```json
-{
-  "title": "string",
-  "description": "string",
-  "status": "active"
-}
-```
-
-### listItems
-
-Purpose:
-
-```txt
-Reads all items from DynamoDB and returns them sorted by latest creation time.
-```
-
-Route:
-
-```txt
-GET /items
-```
-
----
-
-## AWS Architecture
-
-```txt
-User Browser
-    ↓
-Next.js Frontend
-    ↓
-Amazon API Gateway HTTP API
-    ↓
-AWS Lambda Functions
-    ↓
-Amazon DynamoDB
-```
-
-Optional AI extension:
-
-```txt
-AWS Lambda
-    ↓
-Amazon Bedrock
-    ↓
-Nova / Titan model response
-```
-
-Optional file extension:
-
-```txt
-Frontend
-    ↓
-Presigned Upload URL
-    ↓
-Amazon S3
-    ↓
-Lambda / Bedrock document processing
-```
-
----
-
-## Security Notes
-
-Current hackathon prototype security:
-
-```txt
-No hardcoded AWS credentials
-IAM user used for local deployment
-Lambda has DynamoDB permissions through IAM role
-Frontend only stores public API Gateway base URL
-DynamoDB table uses on-demand billing
-```
-
-To improve later:
-
-```txt
-Add Amazon Cognito for authentication
-Restrict CORS allowed origins
-Add request validation
-Add API throttling
-Add structured logging
-Add CloudWatch alarms
-Use least-privilege IAM policies
-```
-
----
-
-## Working Backwards Template
-
-When the problem statement arrives, fill this:
-
-```txt
-Today, we are launching [Solution Name], a [one-line product category] that helps [target user] solve [pain point].
-
-Unlike existing approaches, [Solution Name] combines [core capability 1], [core capability 2], and [core capability 3] to deliver a faster, simpler, and more reliable experience.
-
-With [Solution Name], users can [measurable outcome], while organizations gain [business/customer impact] at cloud scale.
-```
-
----
-
-## Problem Analysis Template
-
-```txt
-1. Who is the customer?
-2. What is the core customer pain?
-3. What is the current broken/inefficient workflow?
-4. Why does this problem matter at Amazon scale?
-5. What is the smallest working demo that proves value?
-6. What features should we avoid because they waste time?
-7. What is the strongest judge-facing wow factor?
-8. What data should be stored?
-9. What APIs are needed?
-10. Does AI genuinely improve the workflow?
-```
-
----
-
-## Feature Roadmap Template
-
-### Must-Haves
-
-```txt
-1. Core user workflow
-2. Create/read/update required data
-3. Clean dashboard or main UI
-4. Deployed backend APIs
-5. Persistent database
-6. Clear demo path
-7. README and architecture explanation
-```
-
-### Delight Features
-
-```txt
-1. Bedrock-powered assistant/recommendation/summarization
-2. Analytics dashboard
-3. Smart prioritization/scoring
-4. Search/filtering
-5. Export/report generation
-6. Role-based experience
-7. Clean architecture diagram
-```
-
-### Avoid
-
-```txt
-1. Building too many screens
-2. Adding AI without clear value
-3. Overengineering authentication too early
-4. Complex microservices
-5. Spending too long on animations
-6. Features that cannot be demoed reliably
-```
-
----
-
-## 48-Hour Execution Plan
-
-### Milestone 1: Setup and Scope
-
-Target duration:
-
-```txt
-0-4 hours
-```
-
-Tasks:
-
-```txt
-Read problem statement deeply
-Identify user persona
-Decide MVP
-Write Working Backwards summary
-Finalize tech stack
-Create issue/task board
-Assign roles
-Update README with final problem context
-```
-
-Output:
-
-```txt
-Locked scope
-Clear architecture
-Task ownership
-Demo workflow defined
-```
-
----
-
-### Milestone 2: Core Backend and Database
-
-Target duration:
-
-```txt
-4-16 hours
-```
-
-Tasks:
-
-```txt
-Finalize DynamoDB schema
-Update backend routes
-Add validation
-Add core business logic
-Deploy Lambda APIs
-Test all endpoints with curl/Thunder Client
-Add sample data
-```
-
-Output:
-
-```txt
-Working backend
-Persistent storage
-Stable API contract
-```
-
----
-
-### Milestone 3: AI / Intelligence Layer
-
-Target duration:
-
-```txt
-16-28 hours
-```
-
-Tasks:
-
-```txt
-Decide whether AI is needed
-Add Bedrock client if useful
-Create prompt templates
-Add AI endpoint
-Store AI outputs in DynamoDB if needed
-Add fallback logic
-Test latency and errors
-```
-
-Output:
-
-```txt
-One meaningful AI-powered feature
-Not a gimmick
-Clearly useful in demo
-```
-
----
-
-### Milestone 4: Frontend UI, Deployment, and Pitch
-
-Target duration:
-
-```txt
-28-48 hours
-```
-
-Tasks:
-
-```txt
-Build final user journey
-Connect UI to APIs
-Add loading and error states
-Make design responsive
-Deploy frontend
-Prepare demo script
-Prepare architecture diagram
-Prepare final pitch
-Record fallback demo video
-Final testing
-```
-
-Output:
-
-```txt
-Deployed product
-Working demo
-Strong pitch
-Submission-ready repository
-```
-
----
-
-## Amazon Leadership Principles Alignment
-
-### Customer Obsession
-
-```txt
-We start from the user pain point and build the smallest useful workflow that solves it clearly.
-```
-
-### Ownership
-
-```txt
-The prototype is deployed, documented, testable, and built with real cloud components rather than only mock data.
-```
-
-### Invent and Simplify
-
-```txt
-We use a simple serverless architecture and avoid unnecessary complexity.
-```
-
-### Bias for Action
-
-```txt
-The project prioritizes a working end-to-end demo early, then improves quality and intelligence.
-```
-
-### Are Right, A Lot
-
-```txt
-Architecture and feature choices are based on problem fit, not hype.
-```
-
-### Deliver Results
-
-```txt
-The final goal is a reliable demo that judges can understand, evaluate, and remember.
-```
-
----
-
-## Demo Script Template
-
-```txt
-1. Start with the customer problem.
-2. Show the current pain or inefficiency.
-3. Introduce the solution in one sentence.
-4. Demonstrate the main workflow.
-5. Show live data persistence.
-6. Show the intelligence/AI layer if included.
-7. Explain AWS architecture.
-8. Explain scalability and security.
-9. End with business/customer impact.
-```
-
----
-
-## Final Submission Checklist
-
-```txt
-[ ] Problem statement understood
-[ ] Working Backwards summary written
-[ ] Architecture diagram ready
-[ ] Backend deployed
-[ ] Frontend deployed
-[ ] DynamoDB working
-[ ] AI feature tested, if included
-[ ] README updated
-[ ] Demo script ready
-[ ] Pitch deck ready
-[ ] GitHub repo clean
-[ ] .env.local not committed
-[ ] App tested on mobile
-[ ] App tested in incognito
-[ ] Backup demo video recorded
-[ ] Team knows who presents what
-```
-
----
-
-## Current Status
-
-```txt
-Step 1: AWS account and billing safety completed
-Step 2: AWS CLI configured
-Step 3: Local tools installed
-Step 4: GitHub repo created
-Step 5: Next.js frontend created
-Step 6: Amazon-style UI base added
-Step 7: Serverless backend created
-Step 8: Backend deployed to AWS
-Step 9: DynamoDB APIs added and deployed
-Step 10: Frontend connected to live backend
-Step 11: Bedrock readiness confirmed
-Step 12: README and execution checklist prepared
-```
-
----
-
-## Notes for Tomorrow
-
-When the HackOn problem statement is released, do not start coding immediately.
-
-First decide:
-
-```txt
-1. What exact user journey will we demo?
-2. What data model do we need?
-3. Which existing /items route should be replaced or extended?
-4. What are the 3-5 must-have screens?
-5. Is Bedrock useful or unnecessary?
-6. What is the judge-facing wow moment?
-```
-
-Then update:
-
-```txt
-frontend/src/app/page.tsx
-frontend/src/lib/api.ts
-backend/src/handler.js
-backend/serverless.yml
-README.md
-```
-
-The current project is intentionally simple so we can pivot fast.
+# Mode with 🧡 by Team_ZooZoo for HackOn with Amazon 6.0
