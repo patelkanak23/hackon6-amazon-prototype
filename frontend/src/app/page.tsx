@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   BudgetMode,
   checkoutNowOrder,
@@ -25,6 +19,10 @@ import {
 const DEMO_USER_ID = "demo-user-001";
 
 type StoreProduct = NowProduct;
+
+type PreventableEvent = {
+  preventDefault: () => void;
+};
 
 const quickPrompts = [
   "Finger cut while cooking",
@@ -289,7 +287,7 @@ function DeckCard({
   disabled?: boolean;
 }) {
   return (
-    <div className="mx-auto w-full max-w-sm">
+    <div className="mx-auto w-full max-w-[330px] sm:max-w-sm">
       <div className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_22px_60px_rgba(15,23,42,0.16)]">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -393,7 +391,7 @@ function CartModeComparison({
   const modes: DecisionMode[] = ["fastest", "bestValue", "mostComplete"];
 
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-3">
       {modes.map((mode) => {
         const cart = plan.cartModes[mode];
         const selected = selectedMode === mode;
@@ -507,7 +505,7 @@ function MiniPlanDetails({ plan }: { plan: NowPlan }) {
   const substitution = plan.substitutions?.[0];
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 overflow-scroll">
+    <div className="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-3 py-2 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[9px] font-black uppercase tracking-wide text-slate-500">
@@ -519,7 +517,7 @@ function MiniPlanDetails({ plan }: { plan: NowPlan }) {
         </div>
       </div>
 
-      <div className="mt-1 grid grid-cols-2 gap-2">
+      <div className="mt-1 grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
         <div className="rounded-xl bg-slate-50 px-3 py-1">
           <p className="text-[10px] font-black uppercase text-slate-500">
             Arrives in
@@ -872,7 +870,7 @@ function SituationTimeline({ plan }: { plan: NowPlan }) {
   ].filter((step) => step.value);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+    <div className="w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
       <div className="flex w-full items-center justify-between gap-1 text-left">
         <div>
           <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
@@ -958,7 +956,7 @@ function AssistPanel({
   setDecisionMode: (value: DecisionMode) => void;
   panicMode: boolean;
   setPanicMode: (value: boolean) => void;
-  onGenerate: (event?: FormEvent) => void;
+  onGenerate: (event?: PreventableEvent) => void;
   isGenerating: boolean;
   plan: NowPlan | null;
   deckItems: NowCartItem[];
@@ -970,7 +968,7 @@ function AssistPanel({
 }) {
   const [followUp, setFollowUp] = useState("");
 
-  async function handleRefineSubmit(event: FormEvent) {
+  async function handleRefineSubmit(event: PreventableEvent) {
     event.preventDefault();
     const instruction = followUp.trim();
     if (!instruction) return;
@@ -987,8 +985,8 @@ function AssistPanel({
   const currentIndex = Math.max(0, totalDeckItems - deckItems.length);
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/50 p-2 md:p-4">
-      <div className="mx-auto flex h-[calc(100vh-16px)] max-w-6xl flex-col overflow-hidden rounded-2xl bg-[#eaeded] shadow-2xl md:h-[calc(100vh-32px)]">
+    <div className="fixed inset-0 z-50 bg-slate-950/50 p-0 sm:p-2 md:p-4">
+      <div className="mx-auto flex h-dvh max-w-6xl flex-col overflow-hidden rounded-none bg-[#eaeded] shadow-2xl sm:h-[calc(100vh-16px)] sm:rounded-2xl md:h-[calc(100vh-32px)]">
         <div className="flex items-center justify-between bg-[#131921] px-4 py-3 text-white">
           <div>
             <p className="text-base font-black">Instant Cart</p>
@@ -1005,7 +1003,7 @@ function AssistPanel({
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="grid flex-1 items-start gap-3 overflow-y-auto p-2 sm:gap-4 sm:p-4 lg:grid-cols-[340px_minmax(0,1fr)]">
           <form
             onSubmit={onGenerate}
             className="rounded-2xl bg-white p-4 shadow-sm"
@@ -1130,10 +1128,10 @@ function AssistPanel({
             </button>
           </form>
 
-          <section className="grid min-h-0 gap-4 rounded-2xl bg-white p-4 shadow-sm xl:grid-cols-[minmax(0,1fr)_300px]">
-            <div className="flex min-h-[430px] flex-col justify-center">
+          <section className="grid min-w-0 gap-4 rounded-2xl bg-white p-3 shadow-sm sm:p-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="flex min-w-0 flex-col justify-center py-2 sm:min-h-[430px] sm:py-0">
               {plan ? (
-                <div className="mx-auto mb-4 w-full max-w-sm">
+                <div className="mx-auto mb-4 w-full max-w-sm min-w-0">
                   <CartModeComparison
                     plan={plan}
                     selectedMode={decisionMode}
@@ -1148,7 +1146,7 @@ function AssistPanel({
                 {isGenerating ? (
                   <AiCartLoader />
                 ) : !plan ? (
-                  <div className="mx-auto max-w-md rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                  <div className="mx-auto w-full max-w-md rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
                     <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-3xl">
                       🛒
                     </div>
@@ -1161,8 +1159,8 @@ function AssistPanel({
                     </p>
                   </div>
                 ) : topItem ? (
-                  <div>
-                    <div className="mx-auto mb-4 flex max-w-sm items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="mx-auto mb-4 flex w-full max-w-sm items-center justify-between gap-3">
                       <div>
                         <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">
                           Instant Cart
@@ -1188,7 +1186,7 @@ function AssistPanel({
                     />
                   </div>
                 ) : (
-                  <div className="mx-auto max-w-md rounded-2xl bg-emerald-50 p-6 text-center ring-1 ring-emerald-100">
+                  <div className="mx-auto w-full max-w-md rounded-2xl bg-emerald-50 p-6 text-center ring-1 ring-emerald-100">
                     <div className="text-4xl">✅</div>
                     <h3 className="mt-3 text-xl font-black text-emerald-900">
                       All items reviewed
@@ -1209,7 +1207,7 @@ function AssistPanel({
               {plan ? (
                 <form
                   onSubmit={handleRefineSubmit}
-                  className="mx-auto mt-4 flex max-w-sm gap-2"
+                  className="mx-auto mt-4 flex w-full max-w-sm gap-2"
                 >
                   <input
                     value={followUp}
@@ -1229,14 +1227,20 @@ function AssistPanel({
             </div>
 
             <div
-              className={plan ? "min-h-0" : "flex min-h-[430px] items-center"}
+              className={
+                plan
+                  ? "min-w-0"
+                  : "flex min-w-0 items-center py-2 sm:min-h-[430px] sm:py-0"
+              }
             >
               {plan ? (
                 <>
-                  <div className="mb-3">
+                  <div className="mb-3 w-full min-w-0">
                     <SituationTimeline plan={plan} />
                   </div>
-                  <MiniPlanDetails plan={plan} />
+                  <div className="w-full min-w-0">
+                    <MiniPlanDetails plan={plan} />
+                  </div>
                 </>
               ) : (
                 <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1271,7 +1275,7 @@ function AssistPanel({
 
 function AiCartLoader() {
   return (
-    <div className="mx-auto flex min-h-[260px] w-full max-w-md items-center justify-center">
+    <div className="mx-auto flex min-h-[220px] w-full max-w-md items-center justify-center sm:min-h-[260px]">
       <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-start gap-3">
           <div className="mt-1 h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-amber-400 border-t-slate-900" />
@@ -1319,7 +1323,7 @@ function CartStage({
   return (
     <div
       key={stageKey}
-      className="w-full motion-safe:animate-[cartStageIn_420ms_cubic-bezier(0.22,1,0.36,1)_both]"
+      className="w-full min-w-0 motion-safe:animate-[cartStageIn_420ms_cubic-bezier(0.22,1,0.36,1)_both]"
     >
       {children}
 
@@ -1338,6 +1342,62 @@ function CartStage({
         }
       `}</style>
     </div>
+  );
+}
+
+function AppFooter({ healthStatus }: { healthStatus: string }) {
+  return (
+    <footer className="mt-8 border-t border-slate-200 bg-[#131921] text-white">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 md:grid-cols-[1.2fr_1fr_1fr]">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded bg-amber-400 text-base font-black text-slate-950">
+              a
+            </div>
+            <div>
+              <p className="text-sm font-black leading-none">Amazon Now</p>
+              <p className="text-[10px] text-slate-300">Instant Cart</p>
+            </div>
+          </div>
+
+          <p className="mt-3 max-w-sm text-sm leading-6 text-slate-300">
+            Describe a need, review the suggested essentials, and checkout a
+            quick cart.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            Demo flow
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {["Describe", "Review", "Add", "Checkout"].map((item) => (
+              <span
+                key={item}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold text-slate-200"
+              >
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-black uppercase tracking-wide text-slate-400">
+            System
+          </p>
+          <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3">
+            <p className="text-sm font-black text-white">
+              Backend: <span className="text-emerald-300">{healthStatus}</span>
+            </p>
+            <p className="mt-1 text-xs leading-5 text-slate-300">
+              Cart suggestions use live inventory, semantic retrieval, and a
+              verification step before display.
+            </p>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }
 
@@ -1493,7 +1553,7 @@ export default function Home() {
     }
   }
 
-  async function handleGenerate(event?: FormEvent) {
+  async function handleGenerate(event?: PreventableEvent) {
     event?.preventDefault();
 
     const trimmed = userRequest.trim();
@@ -1777,7 +1837,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#eaeded] text-slate-950">
       <header className="sticky top-0 z-40 bg-[#131921] text-white shadow-md">
-        <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-2 sm:flex-nowrap sm:gap-3">
           <button
             onClick={() => {
               setActiveCategory("All");
@@ -1794,7 +1854,7 @@ export default function Home() {
             </div>
           </button>
 
-          <div className="flex flex-1 overflow-hidden rounded-md bg-white">
+          <div className="order-3 flex w-full overflow-hidden rounded-md bg-white sm:order-none sm:w-auto sm:flex-1">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -1809,19 +1869,31 @@ export default function Home() {
             </button>
           </div>
 
-          <button
-            onClick={() => setOrdersOpen(true)}
-            className="min-w-fit rounded-md border border-slate-600 px-3 py-2 text-xs font-black sm:block"
-          >
-            My Orders {orders.length}
-          </button>
+          <div className="ml-auto flex min-w-fit items-center gap-2 sm:ml-0">
+            <button
+              onClick={() => setOrdersOpen(true)}
+              aria-label="Open orders"
+              title="My Orders"
+              className="relative flex h-10 w-10 items-center justify-center rounded-md border border-slate-600 text-lg font-black hover:border-amber-400 hover:text-amber-300"
+            >
+              📦
+              {orders.length ? (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-slate-950">
+                  {orders.length}
+                </span>
+              ) : null}
+            </button>
 
-          <button
-            onClick={() => setCartOpen(true)}
-            className="min-w-fit rounded-md border border-slate-600 px-3 py-2 text-sm font-black"
-          >
-            🛒 {cartCount}
-          </button>
+            <button
+              onClick={() => setCartOpen(true)}
+              aria-label="Open cart"
+              title="Cart"
+              className="relative flex h-10 min-w-[2.5rem] items-center justify-center rounded-md border border-slate-600 px-2 text-sm font-black hover:border-amber-400 hover:text-amber-300 sm:px-3"
+            >
+              🛒
+              <span className="ml-1">{cartCount}</span>
+            </button>
+          </div>
         </div>
 
         <nav className="bg-[#232f3e]">
@@ -1849,12 +1921,6 @@ export default function Home() {
           <span className="text-lg font-black text-[#00a8a8]">amazon now</span>
 
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setOrdersOpen(true)}
-              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-black text-slate-700 md:hidden"
-            >
-              Orders
-            </button>
             <p className="text-xs font-medium text-slate-600">
               Backend:{" "}
               <span className="font-black text-emerald-700">
@@ -1940,6 +2006,8 @@ export default function Home() {
           )}
         </section>
       </div>
+
+      <AppFooter healthStatus={healthStatus} />
 
       {cartItems.length ? (
         <div className="sticky bottom-0 z-30 border-t border-slate-200 bg-white/95 shadow-[0_-8px_25px_rgba(15,23,42,0.12)] backdrop-blur">
