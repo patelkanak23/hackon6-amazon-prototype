@@ -256,17 +256,18 @@ export function AssistPanel({
                 placeholder="Tell us your need 😊"
               />
 
-              <div className="mt-1 flex-col items-center justify-center">
+              <div className="mt-1">
                 <p className="mb-2 text-xs font-black uppercase text-slate-500">
                   Try
                 </p>
-                <div className="flex flex-col gap-1">
+
+                <div className="grid grid-cols-1 gap-1 md:grid-cols-2 lg:grid-cols-1">
                   {quickPrompts.map((prompt) => (
                     <button
                       type="button"
                       key={prompt}
                       onClick={() => setUserRequest(prompt)}
-                      className="rounded-full max-w-xs border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 hover:bg-amber-50"
+                      className="w-full rounded-full border border-slate-200 px-3 py-1 text-[10px] font-bold text-slate-600 hover:bg-amber-50"
                     >
                       {prompt}
                     </button>
@@ -274,7 +275,7 @@ export function AssistPanel({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="mt-4 grid gap-3 grid-cols-1">
                 <div>
                   <p className="mb-2 text-xs font-black uppercase text-slate-500">
                     Budget
