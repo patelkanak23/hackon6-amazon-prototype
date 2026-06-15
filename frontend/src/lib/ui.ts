@@ -119,29 +119,20 @@ export function uniqueCartItems(items: NowCartItem[]) {
 }
 
 export function buildDeckFromPlan(plan: NowPlan, mode: DecisionMode) {
-  const primary = plan.cartModes[mode]?.items || [];
-  const fastest = plan.cartModes.fastest?.items || [];
-  const bestValue = plan.cartModes.bestValue?.items || [];
-  const mostComplete = plan.cartModes.mostComplete?.items || [];
+  const selectedItems = plan.cartModes[mode]?.items || [];
 
-  const regretItems: NowCartItem[] = (plan.regretPrevention || []).map(
-    (item) => ({
-      productId: item.productId,
-      name: item.name,
-      quantity: 1,
-      price: item.price,
-      etaMinutes: item.etaMinutes,
-      reason: item.reason,
-    })
-  );
+  if (selectedItems.length) {
+    return uniqueCartItems(selectedItems);
+  }
 
-  return uniqueCartItems([
-    ...primary,
-    ...mostComplete,
-    ...fastest,
-    ...bestValue,
-    ...regretItems,
-  ]).slice(0, 7);
+  const fallbackMode = plan.recommendedMode || "fastest";
+  const fallbackItems = plan.cartModes[fallbackMode]?.items || [];
+
+  if (fallbackItems.length) {
+    return uniqueCartItems(fallbackItems);
+  }
+
+  return uniqueCartItems(plan.cartModes.fastest?.items || []);
 }
 
 export function getCartTotal(items: NowCartItem[]) {
