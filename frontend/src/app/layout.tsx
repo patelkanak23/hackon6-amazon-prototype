@@ -13,8 +13,39 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://main.d2a6skx8ok931x.amplifyapp.com"),
   title: "Amazon Now - Instant Cart",
-  description: "Instant AI Powered Cart",
+  description: "Instant AI-powered cart for urgent shopping needs.",
+  applicationName: "Amazon Now",
+
+  openGraph: {
+    title: "Amazon Now - Instant Cart",
+    description: "Instant AI-powered cart for urgent shopping needs.",
+    url: "https://main.d2a6skx8ok931x.amplifyapp.com",
+    siteName: "Amazon Now",
+    type: "website",
+    images: [
+      {
+        url: "./og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Amazon Now Instant Cart",
+      },
+    ],
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "Amazon Now - Instant Cart",
+    description: "Instant AI-powered cart for urgent shopping needs.",
+    images: ["./og-image.png"],
+  },
+
+  icons: {
+    icon: "./favicon.ico",
+    shortcut: "./favicon.ico",
+    apple: "./apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
